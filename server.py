@@ -1062,13 +1062,12 @@ async def trace(
             changed += " → 已取消隐藏，重新参与浮现"
     return f"已修改记忆桶 {bucket_id}: {changed}"
 
+
 # ============================================================
 # Tool: screen_status / screen_apps —— 屏幕监督
 # 数据来源：Cloudflare Worker  screentime.1446315250.workers.dev
 # ============================================================
 SCREEN_BASE = "https://screentime.1446315250.workers.dev"
-
-
 @mcp.tool()
 async def screen_status() -> str:
     """查看 bb 此刻的手机使用状态：今日总时长、是否还在用、是否过了就寝红线(22:30)。
@@ -1108,7 +1107,6 @@ async def screen_apps() -> str:
     for a in apps:
         lines.append(f"  {a.get('app')}：{a.get('duration')}（{a.get('sessions')} 次）")
     return "\n".join(lines)
-
 
 # =============================================================
 # Tool 5: pulse — Heartbeat, system status + memory listing
