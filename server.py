@@ -1062,6 +1062,53 @@ async def trace(
             changed += " → 已取消隐藏，重新参与浮现"
     return f"已修改记忆桶 {bucket_id}: {changed}"
 
+# ============================================================
+# Tool: screen_status / screen_apps —— 屏幕监督
+# 数据来源：Cloudflare Worker  screentime.1446315250.workers.dev
+# ============================================================
+SCREEN_BASE = "https://screentime.1446315250.workers.dev"
+
+
+@mcp.tool()
+async def screen_status() -> str:
+    """查看 bb 此刻的手机使用状态：今日总时长、是否还在用、是否过了就寝红线(22:30)。
+    用户问"我今天刷了多久""现在该睡了吗""我还在玩手机吗"时调用。"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{SCREEN_BASE}/api/status")
+            data = resp.json()
+    except Exception as e:
+        return f"屏幕监督暂时连不上：{e}"
+    lines = [
+        f"当前时间 {data.get('local_time')}",
+        f"今日手机总时长：{data.get('today_total')}（{data.get('sessions_today')} 段使用）",
+        f"此刻是否在用：{'是' if data.get('active_right_now') else '否'}"
+        + (f"（{data.get('last_active_min_ago')} 分钟前还在动）" if data.get('last_active_min_ago') is not None else ""),
+        f"就寝红线：{data.get('bedtime')}",
+    ]
+    if data.get("past_bedtime_and_scrolling"):
+        lines.append("⚠️ 已过就寝红线，且此刻仍在用手机——该放下了。")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def screen_apps() -> str:
+    """查看 bb 今天各 App 分别用了多久（按时长排序），回答"我把时间花在哪了""我今天微信用了几次"。
+    只回答流向，不做与昨日的攀比式对比。"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{SCREEN_BASE}/api/apps")
+            data = resp.json()
+    except Exception as e:
+        return f"屏幕监督暂时连不上：{e}"
+    apps = data.get("apps", [])
+    if not apps:
+        return f"{data.get('local_date')} 今天还没有任何 App 记录。"
+    lines = [f"{data.get('local_date')} 今天的时间流向："]
+    for a in apps:
+        lines.append(f"  {a.get('app')}：{a.get('duration')}（{a.get('sessions')} 次）")
+    return "\n".join(lines)
+
 
 # =============================================================
 # Tool 5: pulse — Heartbeat, system status + memory listing
@@ -1953,54 +2000,3 @@ if __name__ == "__main__":
     else:
         mcp.run(transport=transport)
         
-
-# ============================================================
-# 屏幕监督工具（screen_status / screen_apps）
-# 数据来源：Cloudflare Worker  screentime.1446315250.workers.dev
-# ============================================================
-
-SCREEN_BASE = "https://screentime.1446315250.workers.dev"
-
-
-@mcp.tool()
-async def screen_status() -> str:
-    """查看 bb 此刻的手机使用状态：今日总时长、是否还在用、是否过了就寝红线(22:30)。
-    用户问"我今天刷了多久""现在该睡了吗""我还在玩手机吗"时调用。"""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{SCREEN_BASE}/api/status")
-            data = resp.json()
-    except Exception as e:
-        return f"屏幕监督暂时连不上：{e}"
-
-    lines = [
-        f"当前时间 {data.get('local_time')}",
-        f"今日手机总时长：{data.get('today_total')}（{data.get('sessions_today')} 段使用）",
-        f"此刻是否在用：{'是' if data.get('active_right_now') else '否'}"
-        + (f"（{data.get('last_active_min_ago')} 分钟前还在动）" if data.get('last_active_min_ago') is not None else ""),
-        f"就寝红线：{data.get('bedtime')}",
-    ]
-    if data.get("past_bedtime_and_scrolling"):
-        lines.append("⚠️ 已过就寝红线，且此刻仍在用手机——该放下了。")
-    return "\n".join(lines)
-
-
-@mcp.tool()
-async def screen_apps() -> str:
-    """查看 bb 今天各 App 分别用了多久（按时长排序），回答"我把时间花在哪了""我今天微信用了几次"。
-    只回答流向，不做与昨日的攀比式对比。"""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{SCREEN_BASE}/api/apps")
-            data = resp.json()
-    except Exception as e:
-        return f"屏幕监督暂时连不上：{e}"
-
-    apps = data.get("apps", [])
-    if not apps:
-        return f"{data.get('local_date')} 今天还没有任何 App 记录。"
-
-    lines = [f"{data.get('local_date')} 今天的时间流向："]
-    for a in apps:
-        lines.append(f"  {a.get('app')}：{a.get('duration')}（{a.get('sessions')} 次）")
-    return "\n".join(lines)
